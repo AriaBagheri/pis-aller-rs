@@ -10,3 +10,4 @@ serde = { version = "1.0.218", features = ["derive"] }
 standard-error = {git = "ssh://git@github.com/AriaBagheri/standard-error-rs.git", package = "standard-error", rev = "d957219319bdf36e0dba43b617fd2f748ee9a9d9"}
 tokio = {version = "1.43.0", features = ["rt-multi-thread", "sync", "fs", "time", "macros"] }
 uuid = { version = "1.14.0", features = ["v4"] }
+persistent-mongo = {git = "ssh://git@github.com/AriaBagheri/persistent-mongo-rs.git"}

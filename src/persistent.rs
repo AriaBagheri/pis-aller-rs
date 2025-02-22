@@ -3,6 +3,7 @@ use std::time::Duration;
 use colored::Colorize;
 use tokio::task::JoinHandle;
 use crossbeam_queue::SegQueue;
+use persistent_mongo::PersistentMongo;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -11,6 +12,8 @@ use crate::record::PisAllerRecord;
 
 pub struct PersistentPisAller {
     application: &'static str,
+    mongo: &'static PersistentMongo,
+
     log_queue: SegQueue<PisAllerRecord>,
     log_thread: Mutex<Option<JoinHandle<()>>>,
 
@@ -26,9 +29,11 @@ pub struct PersistentPisAller {
 /// Takes care of the different pipelines.
 /// MongoDB ?-> File ?-> Logs
 impl PersistentPisAller {
-    pub const fn const_new(application: &'static str) -> Self {
+    pub const fn const_new(application: &'static str, mongo: &'static PersistentMongo) -> Self {
         Self {
             application,
+            mongo,
+
             log_queue: SegQueue::new(),
             log_thread: Mutex::const_new(None),
 
@@ -75,36 +80,36 @@ impl PersistentPisAller {
     pub fn mongo_thread(&'static self) -> JoinHandle<()> {
         let mut shutdown = self.shutdown_signal.subscribe();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(100));
+            let mut interval = tokio::time::interval(Duration::from_millis(100));
             loop {
                 tokio::select! {
                     _ = shutdown.recv() => {
                         break;
                     },
-                    // client = MONGO.client() => {
-                    //     let mut record = if let Some(item) = self.mongo_queue.pop() {
-                    //         item
-                    //     } else {
-                    //         interval.tick().await;
-                    //         continue;
-                    //     };
-                    //
-                    //     let db = client.database(&self.application);
-                    //     let collection = db.collection::<PisAllerRecord>(&format!("pis-aller-{}", record.tag));
-                    //     match collection.insert_one(&record).await {
-                    //         Ok(_) => {},
-                    //         Err(e) => {
-                    //             record.retries += 1;
-                    //             record.error = format!("{}\n{:?}", record.error, e);
-                    //             if record.retries == 5 {
-                    //                 record.retries = 0;
-                    //                 self.file_queue.push(record);
-                    //             } else {
-                    //                 self.mongo_queue.push(record);
-                    //             }
-                    //         }
-                    //     }
-                    // }
+                    client = self.mongo.client() => {
+                        let mut record = if let Some(item) = self.mongo_queue.pop() {
+                            item
+                        } else {
+                            interval.tick().await;
+                            continue;
+                        };
+
+                        let db = client.database(&self.application);
+                        let collection = db.collection::<PisAllerRecord>(&format!("pis-aller-{}", record.tag));
+                        match collection.insert_one(&record).await {
+                            Ok(_) => {},
+                            Err(e) => {
+                                record.retries += 1;
+                                record.error = format!("{}\n{:?}", record.error, e);
+                                if record.retries == 5 {
+                                    record.retries = 0;
+                                    self.file_queue.push(record);
+                                } else {
+                                    self.mongo_queue.push(record);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         })
