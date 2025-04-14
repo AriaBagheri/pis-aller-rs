@@ -9,4 +9,4 @@ crossbeam-queue = "0.3.12"
 serde = { version = "1.0.218", features = ["derive"] }
 tokio = {version = "1.43.0", features = ["rt-multi-thread", "sync", "fs", "time", "macros"] }
 uuid = { version = "1.14.0", features = ["v4"] }
-persistent-mongo = {git = "ssh://git@github.com/AriaBagheri/persistent-mongo-rs.git"}
+persistent-mongo = {git = "https://github.com/AriaBagheri/persistent-mongo-rs.git"}
